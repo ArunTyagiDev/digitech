@@ -28,4 +28,27 @@ class Order extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+	/**
+	 * Extract stored payment screenshot relative path from notes, if present.
+	 */
+	public function getPaymentScreenshotPathAttribute(): ?string
+	{
+		if (empty($this->notes)) {
+			return null;
+		}
+		if (preg_match('/Payment screenshot:\s*([^\s]+)\b/i', (string) $this->notes, $matches)) {
+			return $matches[1] ?? null;
+		}
+		return null;
+	}
+
+	/**
+	 * Build full URL for the payment screenshot.
+	 */
+	public function getPaymentScreenshotUrlAttribute(): ?string
+	{
+		$path = $this->payment_screenshot_path;
+		return $path ? asset($path) : null;
+	}
 }
