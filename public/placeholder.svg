@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 675" width="1200" height="675">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1220"/>
+      <stop offset="100%" stop-color="#1f2937"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" fill="url(#g)"/>
+  <rect x="40" y="40" width="1120" height="595" fill="none" stroke="#374151" stroke-width="4" stroke-dasharray="12 12"/>
+  <g fill="#facc15" font-family="Arial,Helvetica,sans-serif" text-anchor="middle">
+    <text x="600" y="340" font-size="56" font-weight="700">Image Placeholder</text>
+    <text x="600" y="400" font-size="24" fill="#d1d5db">Replace with your banner/product image</text>
+  </g>
+</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1b2230"/>
+      <stop offset="100%" stop-color="#0f1115"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#g)"/>
+  <g fill="#9ca3af" font-family="Arial, sans-serif" text-anchor="middle">
+    <text x="400" y="300" font-size="24">No Image</text>
+  </g>
+</svg>
