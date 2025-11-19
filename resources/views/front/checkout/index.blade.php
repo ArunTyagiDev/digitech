@@ -144,7 +144,17 @@
 					<div class="font-semibold mb-2">Order Summary</div>
 					<ul class="space-y-2 text-sm text-gray-300 max-h-64 overflow-auto pr-1">
 						@foreach($items as $row)
-							<li class="flex justify-between gap-4"><span>{{ $row['product']->name }} × {{ $row['quantity'] }}</span><span>₹{{ number_format($row['line_total'], 2) }}</span></li>
+							<li class="flex justify-between gap-4">
+								<span>{{ $row['product']->name }} × {{ $row['quantity'] }}</span>
+								<span class="flex items-center gap-3">
+									<form method="post" action="{{ route('cart.remove', $row['product']) }}">
+										@csrf
+										@method('DELETE')
+										<button type="submit" class="text-xs text-red-400 hover:underline">Remove</button>
+									</form>
+									<span>₹{{ number_format($row['line_total'], 2) }}</span>
+								</span>
+							</li>
 						@endforeach
 					</ul>
 					<div class="mt-3 flex justify-between font-medium"><span>Subtotal</span><span>₹{{ number_format($subtotal, 2) }}</span></div>
