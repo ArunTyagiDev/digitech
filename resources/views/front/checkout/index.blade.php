@@ -99,32 +99,34 @@
 								</div>
 							@endif
 							@php
-								// Build UPI deep link for supported apps (most will handle generic upi://pay)
+								// Build UPI deep link (generic is most compatible across apps)
 								$payeeName = $payee ?: config('app.name', 'Merchant');
 								$amount = $subtotal; // already 2-decimals, no thousands separator
 								$tn = 'Order payment';
-								$params = 'pa='.urlencode($upiId).'&pn='.urlencode($payeeName).'&am='.urlencode($amount).'&cu=INR&tn='.urlencode($tn);
-								$upiGeneric = 'upi://pay?'.$params;
-								$phonepeLink = 'phonepe://pay?'.$params;
-								$paytmLink = 'paytmmp://pay?'.$params;
-								$gpayLink = 'tez://upi/pay?'.$params; // Google Pay legacy scheme
+								$tr = 'UPI-'.uniqid(); // transaction reference helps some apps avoid "blocked" heuristics
+								$base = 'pa='.urlencode($upiId).'&pn='.urlencode($payeeName).'&cu=INR';
+								$withAmount = $base.'&am='.urlencode($amount).'&tn='.urlencode($tn).'&tr='.urlencode($tr);
+								$upiGeneric = 'upi://pay?'.$withAmount;
+								// Fallback without prefilled amount (some apps block merchant deep links with amount for P2P handles)
+								$upiNoAmount = 'upi://pay?'.$base.'&tn='.urlencode($tn).'&tr='.urlencode($tr);
 							@endphp
 							<div class="grid sm:grid-cols-3 gap-3">
-								<a href="{{ $phonepeLink }}" class="px-3 py-2 text-center rounded border border-brand-gray-700 hover:border-yellow-400 flex items-center justify-center gap-2">
+								<a href="{{ $upiGeneric }}" class="px-3 py-2 text-center rounded border border-brand-gray-700 hover:border-yellow-400 flex items-center justify-center gap-2">
 									<img src="{{ asset('payments/logos/phonepe.svg') }}" alt="PhonePe" class="h-6 w-auto" />
 									<span>PhonePe</span>
 								</a>
-								<a href="{{ $paytmLink }}" class="px-3 py-2 text-center rounded border border-brand-gray-700 hover:border-yellow-400 flex items-center justify-center gap-2">
+								<a href="{{ $upiGeneric }}" class="px-3 py-2 text-center rounded border border-brand-gray-700 hover:border-yellow-400 flex items-center justify-center gap-2">
 									<img src="{{ asset('payments/logos/paytm.svg') }}" alt="Paytm" class="h-6 w-auto" />
 									<span>Paytm</span>
 								</a>
-								<a href="{{ $gpayLink }}" class="px-3 py-2 text-center rounded border border-brand-gray-700 hover:border-yellow-400 flex items-center justify-center gap-2">
+								<a href="{{ $upiGeneric }}" class="px-3 py-2 text-center rounded border border-brand-gray-700 hover:border-yellow-400 flex items-center justify-center gap-2">
 									<img src="{{ asset('payments/logos/gpay.svg') }}" alt="Google Pay" class="h-6 w-auto" />
 									<span>Google Pay</span>
 								</a>
 							</div>
-							<div class="text-xs text-gray-500">
-								If the above buttons don’t open your app, <a href="{{ $upiGeneric }}" class="text-yellow-400 underline">tap here</a> to choose a UPI app.
+							<div class="text-xs text-gray-500 space-y-1">
+								<div>If the buttons don’t open your app, <a href="{{ $upiGeneric }}" class="text-yellow-400 underline">tap here</a> to choose a UPI app.</div>
+								<div>If your app shows the UPI ID as blocked, <a href="{{ $upiNoAmount }}" class="text-yellow-400 underline">open without amount</a> and enter ₹{{ number_format($subtotal, 2) }} manually.</div>
 							</div>
 							<div>
 								<label class="block text-sm text-gray-300">Upload Payment Screenshot (optional)</label>
