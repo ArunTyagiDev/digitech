@@ -99,27 +99,28 @@
 								</div>
 							@endif
 							@php
-								// Build UPI deep link (generic is most compatible across apps)
+								// Build UPI deep links with Android Intent scheme for specific apps + generic fallback
 								$payeeName = $payee ?: config('app.name', 'Merchant');
 								$amount = $subtotal; // already 2-decimals, no thousands separator
 								$tn = 'Order payment';
-								$tr = 'UPI-'.uniqid(); // transaction reference helps some apps avoid "blocked" heuristics
-								$base = 'pa='.urlencode($upiId).'&pn='.urlencode($payeeName).'&cu=INR';
-								$withAmount = $base.'&am='.urlencode($amount).'&tn='.urlencode($tn).'&tr='.urlencode($tr);
-								$upiGeneric = 'upi://pay?'.$withAmount;
-								// Fallback without prefilled amount (some apps block merchant deep links with amount for P2P handles)
-								$upiNoAmount = 'upi://pay?'.$base.'&tn='.urlencode($tn).'&tr='.urlencode($tr);
+								$tr = 'UPI-'.uniqid();
+								$params = 'pa='.urlencode($upiId).'&pn='.urlencode($payeeName).'&am='.urlencode($amount).'&cu=INR&tn='.urlencode($tn).'&tr='.urlencode($tr);
+								$upiGeneric = 'upi://pay?'.$params;
+								$upiNoAmount = 'upi://pay?pa='.urlencode($upiId).'&pn='.urlencode($payeeName).'&cu=INR&tn='.urlencode($tn).'&tr='.urlencode($tr);
+								$intentPhonePe = 'intent://upi/pay?'.$params.'#Intent;scheme=upi;package=com.phonepe.app;end';
+								$intentGPay = 'intent://upi/pay?'.$params.'#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end';
+								$intentPaytm = 'intent://upi/pay?'.$params.'#Intent;scheme=upi;package=net.one97.paytm;end';
 							@endphp
 							<div class="grid sm:grid-cols-3 gap-3">
-								<a href="{{ $upiGeneric }}" class="px-3 py-2 text-center rounded border border-brand-gray-700 hover:border-yellow-400 flex items-center justify-center gap-2">
+								<a href="{{ $intentPhonePe }}" class="px-3 py-2 text-center rounded border border-brand-gray-700 hover:border-yellow-400 flex items-center justify-center gap-2">
 									<img src="{{ asset('payments/logos/phonepe.svg') }}" alt="PhonePe" class="h-6 w-auto" />
 									<span>PhonePe</span>
 								</a>
-								<a href="{{ $upiGeneric }}" class="px-3 py-2 text-center rounded border border-brand-gray-700 hover:border-yellow-400 flex items-center justify-center gap-2">
+								<a href="{{ $intentPaytm }}" class="px-3 py-2 text-center rounded border border-brand-gray-700 hover:border-yellow-400 flex items-center justify-center gap-2">
 									<img src="{{ asset('payments/logos/paytm.svg') }}" alt="Paytm" class="h-6 w-auto" />
 									<span>Paytm</span>
 								</a>
-								<a href="{{ $upiGeneric }}" class="px-3 py-2 text-center rounded border border-brand-gray-700 hover:border-yellow-400 flex items-center justify-center gap-2">
+								<a href="{{ $intentGPay }}" class="px-3 py-2 text-center rounded border border-brand-gray-700 hover:border-yellow-400 flex items-center justify-center gap-2">
 									<img src="{{ asset('payments/logos/gpay.svg') }}" alt="Google Pay" class="h-6 w-auto" />
 									<span>Google Pay</span>
 								</a>
