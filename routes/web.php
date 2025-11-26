@@ -50,6 +50,7 @@ Route::post('/cart/clear', [CartController::class, 'clear'])->name('cart.clear')
 // Checkout
 Route::get('/checkout', [CheckoutController::class, 'index'])->name('checkout.index');
 Route::post('/checkout', [CheckoutController::class, 'place'])->name('checkout.place');
+Route::post('/checkout/gpay', [CheckoutController::class, 'gpay'])->name('checkout.gpay');
 Route::get('/checkout/thank-you/{order}', [CheckoutController::class, 'thankyou'])->name('checkout.thankyou');
 
 Route::get('/dashboard', function () {

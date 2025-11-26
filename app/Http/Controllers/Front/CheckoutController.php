@@ -149,4 +149,79 @@ class CheckoutController extends Controller
     {
         return view('front.checkout.thankyou', compact('order'));
     }
+
+    public function gpay(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email'],
+            'phone' => ['nullable', 'string', 'max:30'],
+            'address' => ['nullable', 'string'],
+            'notes' => ['nullable', 'string'],
+            'paymentData' => ['required'], // Google Pay paymentData (JSON or array)
+        ]);
+
+        $cart = collect($request->session()->get('cart', []));
+        if ($cart->isEmpty()) {
+            return response()->json(['message' => 'Cart is empty'], 422);
+        }
+
+        $productIds = $cart->keys()->all();
+        $products = Product::whereIn('id', $productIds)->get()->keyBy('id');
+        $items = $cart->map(function ($qty, $id) use ($products) {
+            $p = $products->get((int) $id);
+            if (!$p) return null;
+            $original = $p->price ?? 0;
+            $price = $original * 0.5;
+            return [
+                'product' => $p,
+                'quantity' => (int) $qty,
+                'original_price' => $original,
+                'price' => $price,
+                'line_total' => $price * (int) $qty,
+            ];
+        })->filter();
+
+        $subtotal = (float) number_format($items->sum('line_total'), 2, '.', '');
+
+        $gpayDataRaw = $validated['paymentData'];
+        $gpayDataString = is_string($gpayDataRaw) ? $gpayDataRaw : json_encode($gpayDataRaw);
+
+        $order = DB::transaction(function () use ($validated, $items, $subtotal, $gpayDataString) {
+            $notes = trim(($validated['notes'] ?? '') . "\nGPay paymentData: " . $gpayDataString);
+
+            $order = Order::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'phone' => $validated['phone'] ?? null,
+                'address' => $validated['address'] ?? null,
+                'notes' => $notes,
+                'subtotal' => $subtotal,
+                'total' => $subtotal,
+                'status' => 'pending',
+                'payment_method' => 'gpay',
+                'payment_reference' => 'GPay',
+            ]);
+
+            foreach ($items as $row) {
+                OrderItem::create([
+                    'order_id' => $order->id,
+                    'product_id' => $row['product']->id,
+                    'name' => $row['product']->name,
+                    'price' => $row['price'],
+                    'quantity' => $row['quantity'],
+                    'line_total' => $row['line_total'],
+                ]);
+            }
+
+            return $order;
+        });
+
+        $request->session()->forget('cart');
+
+        return response()->json([
+            'ok' => true,
+            'redirect' => route('checkout.thankyou', ['order' => $order->id]),
+        ]);
+    }
 }

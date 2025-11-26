@@ -51,6 +51,8 @@
 						<!-- Card form -->
 						<div x-show="method==='card'" x-cloak class="mt-4 border border-brand-gray-800 rounded-xl p-4 bg-brand-gray-800/40 space-y-4">
 							<div class="text-sm text-gray-300">Enter your card details. We do not store full card data; only last 4 will be kept for reference.</div>
+							<div class="text-sm text-gray-300">Or use Google Pay:</div>
+							<div id="gpay-container" class="mt-2"></div>
 							<div>
 								<label class="block text-sm text-gray-300">Name on Card</label>
 								<input name="card_name" value="{{ old('card_name') }}" class="w-full mt-1 bg-brand-gray-800 border border-brand-gray-700 rounded px-3 py-2" />
@@ -165,4 +167,103 @@
 			</div>
 		</div>
 	</section>
+	<script src="https://pay.google.com/gp/p/js/pay.js" async></script>
+	<script>
+		(function () {
+			const initGPay = function () {
+				if (!window.google || !google.payments || !google.payments.api) return;
+				try {
+					const paymentsClient = new google.payments.api.PaymentsClient({ environment: 'TEST' });
+					const allowedCardNetworks = ['VISA', 'MASTERCARD'];
+					const allowedAuthMethods = ['PAN_ONLY', 'CRYPTOGRAM_3DS'];
+					const baseCardPaymentMethod = {
+						type: 'CARD',
+						parameters: { allowedAuthMethods, allowedCardNetworks }
+					};
+					const tokenizationSpecification = {
+						type: 'PAYMENT_GATEWAY',
+						parameters: { gateway: 'example', gatewayMerchantId: 'exampleGatewayMerchantId' }
+					};
+					const cardPaymentMethod = Object.assign({}, baseCardPaymentMethod, { tokenizationSpecification });
+					const isReadyToPayRequest = {
+						apiVersion: 2, apiVersionMinor: 0,
+						allowedPaymentMethods: [baseCardPaymentMethod]
+					};
+					paymentsClient.isReadyToPay(isReadyToPayRequest).then(function (res) {
+						if (res.result) {
+							const button = paymentsClient.createButton({
+								onClick: onGooglePayButtonClicked,
+								buttonColor: 'black',
+								buttonType: 'buy'
+							});
+							const container = document.getElementById('gpay-container');
+							if (container) {
+								container.innerHTML = '';
+								container.appendChild(button);
+							}
+						}
+					}).catch(function (err) { console.error(err); });
+
+					function getPaymentDataRequest() {
+						return {
+							apiVersion: 2,
+							apiVersionMinor: 0,
+							allowedPaymentMethods: [cardPaymentMethod],
+							merchantInfo: { merchantName: '{{ config('app.name', 'Merchant') }}' },
+							transactionInfo: {
+								totalPriceStatus: 'FINAL',
+								totalPrice: '{{ $subtotal }}',
+								currencyCode: 'INR',
+								countryCode: 'IN'
+							}
+						};
+					}
+
+					function onGooglePayButtonClicked() {
+						const request = getPaymentDataRequest();
+						paymentsClient.loadPaymentData(request).then(function (paymentData) {
+							submitGPay(paymentData);
+						}).catch(function (err) { console.error(err); });
+					}
+
+					function submitGPay(paymentData) {
+						const formEl = document.querySelector('form[action="{{ route('checkout.place') }}"]');
+						if (!formEl) return;
+						const formData = new FormData(formEl);
+						formData.set('payment_method', 'gpay');
+						formData.append('paymentData', JSON.stringify(paymentData));
+						fetch('{{ route('checkout.gpay') }}', {
+							method: 'POST',
+							headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+							body: formData
+						}).then(function (r) { return r.json(); }).then(function (data) {
+							if (data && data.redirect) {
+								window.location.href = data.redirect;
+							} else {
+								alert('Payment could not be completed. Please try another method.');
+							}
+						}).catch(function () {
+							alert('Payment could not be completed. Please try another method.');
+						});
+					}
+				} catch (e) {
+					console.error(e);
+				}
+			};
+			// try after load, then retry when script is ready
+			window.addEventListener('load', function () {
+				if (document.querySelector('#gpay-container')) {
+					let attempts = 0;
+					const t = setInterval(function () {
+						attempts++;
+						if (window.google && google.payments && google.payments.api) {
+							clearInterval(t);
+							initGPay();
+						}
+						if (attempts > 20) clearInterval(t);
+					}, 300);
+				}
+			});
+		})();
+	</script>
 </x-front-layout>
