@@ -88,31 +88,29 @@
 								$payeeName = $payee ?: config('app.name', 'Merchant');
 								$amount = $subtotal; // already 2-decimals, no thousands separator
 								$tn = 'Order payment';
-								$tr = 'UPI-'.uniqid();
-								$orgid = config('payment.upi_orgid');
-								$mc = config('payment.merchant_category');
-								$baseParams = [
+								// Keep params minimal to avoid app-side blocks
+								$minimalParams = [
 									'pa' => $upiId,
 									'pn' => $payeeName,
 									'am' => $amount,
 									'cu' => 'INR',
 									'tn' => $tn,
-									'tr' => $tr,
 								];
-								if (!empty($orgid)) $baseParams['orgid'] = $orgid;
-								if (!empty($mc)) $baseParams['mc'] = $mc;
 								$build = function ($params) {
 									return implode('&', array_map(function ($k) use ($params) {
 										return $k.'='.urlencode($params[$k]);
 									}, array_keys($params)));
 								};
-								$params = $build($baseParams);
+								$params = $build($minimalParams);
 								$upiGeneric = 'upi://pay?'.$params;
-								$noAmountParams = $baseParams; unset($noAmountParams['am']);
+								$noAmountParams = $minimalParams; unset($noAmountParams['am']);
 								$upiNoAmount = 'upi://pay?'.$build($noAmountParams);
 								$intentPhonePe = 'intent://upi/pay?'.$params.'#Intent;scheme=upi;package=com.phonepe.app;end';
 								$intentGPay = 'intent://upi/pay?'.$params.'#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end';
 								$intentPaytm = 'intent://upi/pay?'.$params.'#Intent;scheme=upi;package=net.one97.paytm;end';
+								// iOS app schemes
+								$schemePhonePe = 'phonepe://pay?'.$params;
+								$schemePaytm = 'paytmmp://upi_pay?'.$params;
 							@endphp
 							<div>
 								<button type="button" id="upi-pay-now" class="px-4 py-2 rounded border border-yellow-400 text-black bg-yellow-400 hover:opacity-90">Pay via UPI Now</button>
@@ -220,14 +218,25 @@
 				var payBtn = document.getElementById('upi-pay-now');
 				if (payBtn) {
 					payBtn.addEventListener('click', function () {
-						tryIntents(
-							[
-								'{{ $intentGPay }}',
-								'{{ $intentPhonePe }}',
-								'{{ $intentPaytm }}'
-							],
-							'{{ $upiGeneric }}'
-						);
+						var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+						if (isIOS) {
+							tryIntents(
+								[
+									'{{ $schemePhonePe }}',
+									'{{ $schemePaytm }}'
+								],
+								'{{ $upiGeneric }}'
+							);
+						} else {
+							tryIntents(
+								[
+									'{{ $intentGPay }}',
+									'{{ $intentPhonePe }}',
+									'{{ $intentPaytm }}'
+								],
+								'{{ $upiGeneric }}'
+							);
+						}
 					});
 				}
 			});
