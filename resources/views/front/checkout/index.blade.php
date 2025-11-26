@@ -86,12 +86,14 @@
 							<div class="text-sm text-gray-400">Use your UPI app to scan & pay. Include your name in remarks.</div>
 							@php
 								$payeeName = $payee ?: config('app.name', 'Merchant');
+								// Sanitize payee name to avoid special chars some UPI apps reject
+								$payeeNameClean = preg_replace('/[^A-Za-z0-9\\.\\- ]/', '', (string) $payeeName);
 								$amount = $subtotal; // already 2-decimals, no thousands separator
 								$tn = 'Order payment';
 								// Keep params minimal to avoid app-side blocks
 								$minimalParams = [
 									'pa' => $upiId,
-									'pn' => $payeeName,
+									'pn' => $payeeNameClean,
 									'am' => $amount,
 									'cu' => 'INR',
 									'tn' => $tn,
@@ -111,6 +113,8 @@
 								// iOS app schemes
 								$schemePhonePe = 'phonepe://pay?'.$params;
 								$schemePaytm = 'paytmmp://upi_pay?'.$params;
+								$schemeGPay1 = 'gpay://upi/pay?'.$params;
+								$schemeGPay2 = 'tez://upi/pay?'.$params;
 							@endphp
 							<div>
 								<button type="button" id="upi-pay-now" class="px-4 py-2 rounded border border-yellow-400 text-black bg-yellow-400 hover:opacity-90">Pay via UPI Now</button>
@@ -140,15 +144,15 @@
 								</div>
 							@endif
 							<div class="grid sm:grid-cols-3 gap-3">
-								<a href="{{ $intentPhonePe }}" class="px-3 py-2 text-center rounded border border-brand-gray-700 hover:border-yellow-400 flex items-center justify-center gap-2">
+								<a id="btn-phonepe" href="{{ $intentPhonePe }}" class="px-3 py-2 text-center rounded border border-brand-gray-700 hover:border-yellow-400 flex items-center justify-center gap-2">
 									<img src="{{ asset('payments/logos/phonepe.svg') }}" alt="PhonePe" class="h-6 w-auto" />
 									<span>PhonePe</span>
 								</a>
-								<a href="{{ $intentPaytm }}" class="px-3 py-2 text-center rounded border border-brand-gray-700 hover:border-yellow-400 flex items-center justify-center gap-2">
+								<a id="btn-paytm" href="{{ $intentPaytm }}" class="px-3 py-2 text-center rounded border border-brand-gray-700 hover:border-yellow-400 flex items-center justify-center gap-2">
 									<img src="{{ asset('payments/logos/paytm.svg') }}" alt="Paytm" class="h-6 w-auto" />
 									<span>Paytm</span>
 								</a>
-								<a href="{{ $intentGPay }}" class="px-3 py-2 text-center rounded border border-brand-gray-700 hover:border-yellow-400 flex items-center justify-center gap-2">
+								<a id="btn-gpay" href="{{ $intentGPay }}" class="px-3 py-2 text-center rounded border border-brand-gray-700 hover:border-yellow-400 flex items-center justify-center gap-2">
 									<img src="{{ asset('payments/logos/gpay.svg') }}" alt="Google Pay" class="h-6 w-auto" />
 									<span>Google Pay</span>
 								</a>
@@ -216,6 +220,9 @@
 			}
 			window.addEventListener('load', function () {
 				var payBtn = document.getElementById('upi-pay-now');
+				var btnPhonePe = document.getElementById('btn-phonepe');
+				var btnPaytm = document.getElementById('btn-paytm');
+				var btnGPay = document.getElementById('btn-gpay');
 				if (payBtn) {
 					payBtn.addEventListener('click', function () {
 						var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -238,6 +245,23 @@
 							);
 						}
 					});
+				}
+				function attachAppHandler(el, intents, fallback) {
+					if (!el) return;
+					el.addEventListener('click', function (e) {
+						e.preventDefault();
+						tryIntents(intents, fallback);
+					});
+				}
+				var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+				if (isIOS) {
+					attachAppHandler(btnPhonePe, ['{{ $schemePhonePe }}'], '{{ $upiGeneric }}');
+					attachAppHandler(btnPaytm, ['{{ $schemePaytm }}'], '{{ $upiGeneric }}');
+					attachAppHandler(btnGPay, ['{{ $schemeGPay1 }}', '{{ $schemeGPay2 }}'], '{{ $upiGeneric }}');
+				} else {
+					attachAppHandler(btnPhonePe, ['{{ $intentPhonePe }}'], '{{ $upiGeneric }}');
+					attachAppHandler(btnPaytm, ['{{ $intentPaytm }}'], '{{ $upiGeneric }}');
+					attachAppHandler(btnGPay, ['{{ $intentGPay }}'], '{{ $upiGeneric }}');
 				}
 			});
 		})();
