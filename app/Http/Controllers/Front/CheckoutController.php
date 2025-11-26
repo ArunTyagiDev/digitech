@@ -38,8 +38,8 @@ class CheckoutController extends Controller
         $subtotal = number_format($items->sum('line_total'), 2, '.', '');
 
         $qrPath = config('payment.qr_path', 'payments/qr.png');
-        // Use configured UPI ID, or fall back to provided Paytm UPI ID
-        $upiId = config('payment.upi_id') ?: 'paytmqr2810050501011meg3b1gpd19@paytm';
+        // Use configured UPI ID
+        $upiId = config('payment.upi_id');
         $payee = config('payment.payee');
 
         return view('front.checkout.index', compact('items', 'subtotal', 'qrPath', 'upiId', 'payee'));

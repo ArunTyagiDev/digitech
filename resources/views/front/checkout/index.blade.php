@@ -51,8 +51,6 @@
 						<!-- Card form -->
 						<div x-show="method==='card'" x-cloak class="mt-4 border border-brand-gray-800 rounded-xl p-4 bg-brand-gray-800/40 space-y-4">
 							<div class="text-sm text-gray-300">Enter your card details. We do not store full card data; only last 4 will be kept for reference.</div>
-							<div class="text-sm text-gray-300">Or use Google Pay:</div>
-							<div id="gpay-container" class="mt-2"></div>
 							<div>
 								<label class="block text-sm text-gray-300">Name on Card</label>
 								<input name="card_name" value="{{ old('card_name') }}" class="w-full mt-1 bg-brand-gray-800 border border-brand-gray-700 rounded px-3 py-2" />
@@ -86,6 +84,40 @@
 						<div x-show="method==='qr'" x-cloak class="mt-4 border border-brand-gray-800 rounded-xl p-4 bg-brand-gray-800/40 space-y-4">
 							<div class="font-semibold">Scan to Pay</div>
 							<div class="text-sm text-gray-400">Use your UPI app to scan & pay. Include your name in remarks.</div>
+							@php
+								$payeeName = $payee ?: config('app.name', 'Merchant');
+								$amount = $subtotal; // already 2-decimals, no thousands separator
+								$tn = 'Order payment';
+								$tr = 'UPI-'.uniqid();
+								$orgid = config('payment.upi_orgid');
+								$mc = config('payment.merchant_category');
+								$baseParams = [
+									'pa' => $upiId,
+									'pn' => $payeeName,
+									'am' => $amount,
+									'cu' => 'INR',
+									'tn' => $tn,
+									'tr' => $tr,
+								];
+								if (!empty($orgid)) $baseParams['orgid'] = $orgid;
+								if (!empty($mc)) $baseParams['mc'] = $mc;
+								$build = function ($params) {
+									return implode('&', array_map(function ($k) use ($params) {
+										return $k.'='.urlencode($params[$k]);
+									}, array_keys($params)));
+								};
+								$params = $build($baseParams);
+								$upiGeneric = 'upi://pay?'.$params;
+								$noAmountParams = $baseParams; unset($noAmountParams['am']);
+								$upiNoAmount = 'upi://pay?'.$build($noAmountParams);
+								$intentPhonePe = 'intent://upi/pay?'.$params.'#Intent;scheme=upi;package=com.phonepe.app;end';
+								$intentGPay = 'intent://upi/pay?'.$params.'#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end';
+								$intentPaytm = 'intent://upi/pay?'.$params.'#Intent;scheme=upi;package=net.one97.paytm;end';
+							@endphp
+							<div>
+								<button type="button" id="upi-pay-now" class="px-4 py-2 rounded border border-yellow-400 text-black bg-yellow-400 hover:opacity-90">Pay via UPI Now</button>
+								<div class="text-xs text-gray-500 mt-2">This will try Google Pay, PhonePe, Paytm, then show your UPI app list.</div>
+							</div>
 							<div class="mt-3 aspect-square border border-brand-gray-800 rounded bg-brand-gray-900 flex items-center justify-center">
 								@php $exists = file_exists(public_path($qrPath)); @endphp
 								@if($exists)
@@ -97,22 +129,18 @@
 							@if($upiId || $payee)
 								<div class="text-sm text-gray-300">
 									@if($payee)<div>Payee: {{ $payee }}</div>@endif
-									@if($upiId)<div>UPI ID: {{ $upiId }}</div>@endif
+									@if($upiId)
+										<div class="flex items-center gap-2">
+											<span>UPI ID: {{ $upiId }}</span>
+											<button type="button" class="text-xs px-2 py-1 border border-brand-gray-700 rounded hover:border-yellow-400" onclick="navigator.clipboard && navigator.clipboard.writeText('{{ $upiId }}')">Copy</button>
+										</div>
+									@endif
+									<div class="flex items-center gap-2">
+										<span>Amount: ₹{{ number_format($subtotal, 2) }}</span>
+										<button type="button" class="text-xs px-2 py-1 border border-brand-gray-700 rounded hover:border-yellow-400" onclick="navigator.clipboard && navigator.clipboard.writeText('{{ $subtotal }}')">Copy</button>
+									</div>
 								</div>
 							@endif
-							@php
-								// Build UPI deep links with Android Intent scheme for specific apps + generic fallback
-								$payeeName = $payee ?: config('app.name', 'Merchant');
-								$amount = $subtotal; // already 2-decimals, no thousands separator
-								$tn = 'Order payment';
-								$tr = 'UPI-'.uniqid();
-								$params = 'pa='.urlencode($upiId).'&pn='.urlencode($payeeName).'&am='.urlencode($amount).'&cu=INR&tn='.urlencode($tn).'&tr='.urlencode($tr);
-								$upiGeneric = 'upi://pay?'.$params;
-								$upiNoAmount = 'upi://pay?pa='.urlencode($upiId).'&pn='.urlencode($payeeName).'&cu=INR&tn='.urlencode($tn).'&tr='.urlencode($tr);
-								$intentPhonePe = 'intent://upi/pay?'.$params.'#Intent;scheme=upi;package=com.phonepe.app;end';
-								$intentGPay = 'intent://upi/pay?'.$params.'#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end';
-								$intentPaytm = 'intent://upi/pay?'.$params.'#Intent;scheme=upi;package=net.one97.paytm;end';
-							@endphp
 							<div class="grid sm:grid-cols-3 gap-3">
 								<a href="{{ $intentPhonePe }}" class="px-3 py-2 text-center rounded border border-brand-gray-700 hover:border-yellow-400 flex items-center justify-center gap-2">
 									<img src="{{ asset('payments/logos/phonepe.svg') }}" alt="PhonePe" class="h-6 w-auto" />
@@ -167,101 +195,40 @@
 			</div>
 		</div>
 	</section>
-	<script src="https://pay.google.com/gp/p/js/pay.js" async></script>
 	<script>
 		(function () {
-			const initGPay = function () {
-				if (!window.google || !google.payments || !google.payments.api) return;
-				try {
-					const paymentsClient = new google.payments.api.PaymentsClient({ environment: 'TEST' });
-					const allowedCardNetworks = ['VISA', 'MASTERCARD'];
-					const allowedAuthMethods = ['PAN_ONLY', 'CRYPTOGRAM_3DS'];
-					const baseCardPaymentMethod = {
-						type: 'CARD',
-						parameters: { allowedAuthMethods, allowedCardNetworks }
-					};
-					const tokenizationSpecification = {
-						type: 'PAYMENT_GATEWAY',
-						parameters: { gateway: 'example', gatewayMerchantId: 'exampleGatewayMerchantId' }
-					};
-					const cardPaymentMethod = Object.assign({}, baseCardPaymentMethod, { tokenizationSpecification });
-					const isReadyToPayRequest = {
-						apiVersion: 2, apiVersionMinor: 0,
-						allowedPaymentMethods: [baseCardPaymentMethod]
-					};
-					paymentsClient.isReadyToPay(isReadyToPayRequest).then(function (res) {
-						if (res.result) {
-							const button = paymentsClient.createButton({
-								onClick: onGooglePayButtonClicked,
-								buttonColor: 'black',
-								buttonType: 'buy'
-							});
-							const container = document.getElementById('gpay-container');
-							if (container) {
-								container.innerHTML = '';
-								container.appendChild(button);
-							}
-						}
-					}).catch(function (err) { console.error(err); });
-
-					function getPaymentDataRequest() {
-						return {
-							apiVersion: 2,
-							apiVersionMinor: 0,
-							allowedPaymentMethods: [cardPaymentMethod],
-							merchantInfo: { merchantName: '{{ config('app.name', 'Merchant') }}' },
-							transactionInfo: {
-								totalPriceStatus: 'FINAL',
-								totalPrice: '{{ $subtotal }}',
-								currencyCode: 'INR',
-								countryCode: 'IN'
-							}
-						};
+			function openUri(uri) {
+				window.location.href = uri;
+			}
+			function tryIntents(intents, fallback) {
+				let idx = 0;
+				function next() {
+					if (idx >= intents.length) {
+						if (fallback) openUri(fallback);
+						return;
 					}
-
-					function onGooglePayButtonClicked() {
-						const request = getPaymentDataRequest();
-						paymentsClient.loadPaymentData(request).then(function (paymentData) {
-							submitGPay(paymentData);
-						}).catch(function (err) { console.error(err); });
+					try {
+						openUri(intents[idx++]);
+						setTimeout(next, 1200);
+					} catch (e) {
+						next();
 					}
-
-					function submitGPay(paymentData) {
-						const formEl = document.querySelector('form[action="{{ route('checkout.place') }}"]');
-						if (!formEl) return;
-						const formData = new FormData(formEl);
-						formData.set('payment_method', 'gpay');
-						formData.append('paymentData', JSON.stringify(paymentData));
-						fetch('{{ route('checkout.gpay') }}', {
-							method: 'POST',
-							headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
-							body: formData
-						}).then(function (r) { return r.json(); }).then(function (data) {
-							if (data && data.redirect) {
-								window.location.href = data.redirect;
-							} else {
-								alert('Payment could not be completed. Please try another method.');
-							}
-						}).catch(function () {
-							alert('Payment could not be completed. Please try another method.');
-						});
-					}
-				} catch (e) {
-					console.error(e);
 				}
-			};
-			// try after load, then retry when script is ready
+				next();
+			}
 			window.addEventListener('load', function () {
-				if (document.querySelector('#gpay-container')) {
-					let attempts = 0;
-					const t = setInterval(function () {
-						attempts++;
-						if (window.google && google.payments && google.payments.api) {
-							clearInterval(t);
-							initGPay();
-						}
-						if (attempts > 20) clearInterval(t);
-					}, 300);
+				var payBtn = document.getElementById('upi-pay-now');
+				if (payBtn) {
+					payBtn.addEventListener('click', function () {
+						tryIntents(
+							[
+								'{{ $intentGPay }}',
+								'{{ $intentPhonePe }}',
+								'{{ $intentPaytm }}'
+							],
+							'{{ $upiGeneric }}'
+						);
+					});
 				}
 			});
 		})();
